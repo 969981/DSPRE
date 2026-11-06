@@ -107,6 +107,13 @@ jobs:
           git clone --depth 1 https://github.com/DS-Pokemon-Rom-Editor/scrcmd-database.git databases
           git clone --depth 1 https://github.com/DS-Pokemon-Rom-Editor/ds-rom.git ds-rom
 
+      - name: Cache Rust helper compilation
+        if: steps.existing.outputs.exists != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ds-rom -> target
+          key: ds-rom-cli
+
       - name: Restore NuGet packages
         if: steps.existing.outputs.exists != 'true'
         shell: pwsh
@@ -134,10 +141,13 @@ jobs:
           if (!(Test-Path "$out/DSPRE.exe")) { throw 'DSPRE.exe not found: compilation produced no executable' }
           New-Item -ItemType Directory -Force -Path "$out/databases" | Out-Null
           robocopy databases "$out/databases" /E /XD .git | Out-Null
-          if ($LASTEXITCODE -gt 7) { throw "robocopy failed: $LASTEXITCODE" }
+          $robocopyCode = $LASTEXITCODE
+          if ($robocopyCode -gt 7) { throw "robocopy failed: $robocopyCode" }
+          $global:LASTEXITCODE = 0
           $zip = "DSPRE-windows-${{ steps.meta.outputs.short }}.zip"
-          Compress-Archive -Path "$out/*" -DestinationPath $zip -CompressionLevel Optimal -Force
+          Compress-Archive -Path "$out/*" -DestinationPath $zip -CompressionLevel Optimal -Force -ErrorAction Stop
           if (!(Test-Path $zip)) { throw 'Release zip not generated' }
+          exit 0
 
       - name: Preserve Windows ZIP as Actions artifact
         if: steps.existing.outputs.exists != 'true'
